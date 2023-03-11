@@ -1,6 +1,11 @@
 import argparse, torch
 from stylegan2 import Generator
 from coralstyle import CoralAttnNet
+from criteria.loss import (
+    clip_loss, id_loss,
+    tv_loss, l2_loss,
+    can_area_loss,
+)
 
 parser = argparse.ArgumentParser(description="Generate samples from the generator")
 
@@ -46,5 +51,12 @@ g_ema.load_state_dict(checkpoint["g_ema"], strict=False)
 model = CoralAttnNet(g_ema)
 
 with torch.no_grad():
-    w_plus = torch.randn((1, 14, 512))
+    w_plus = torch.randn((2, 14, 512))
     image, image_star, image_bar, masks, delta_w_plus = model(w_plus)
+    print(image.shape, delta_w_plus.shape, len(masks), masks[0].shape)
+    text ='Happy'
+    print(clip_loss(image, image_bar, text))
+    print(id_loss(image, image_star))
+    print(tv_loss(masks))
+    print(l2_loss(delta_w_plus))
+    print(can_area_loss(masks))
