@@ -9,7 +9,7 @@ def generate(args, g_ema, device, mean_latent):
         for i in tqdm(range(args.pics)):
             sample_z = torch.randn(args.sample, args.latent, device=device)
 
-            sample, _ = g_ema(
+            sample, _, _ = g_ema(
                 [sample_z], truncation=args.truncation, truncation_latent=mean_latent
             )
 

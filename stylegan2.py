@@ -387,6 +387,9 @@ class ToRGB(nn.Module):
 
         return out
 
+def append_if(condition, var, elem):
+    if (condition):
+        var.append(elem)
 
 class Generator(nn.Module):
     def __init__(
@@ -506,6 +509,7 @@ class Generator(nn.Module):
         input_is_latent=False,
         noise=None,
         randomize_noise=True,
+        return_features=False,
     ):
         if not input_is_latent:
             styles = [self.style(s) for s in styles]
@@ -546,8 +550,11 @@ class Generator(nn.Module):
 
             latent = torch.cat([latent, latent2], 1)
 
+        features = []
         out = self.input(latent)
+        append_if(return_features, features, out)
         out = self.conv1(out, latent[:, 0], noise=noise[0])
+        append_if(return_features, features, out)
 
         skip = self.to_rgb1(out, latent[:, 1])
 
@@ -556,7 +563,9 @@ class Generator(nn.Module):
             self.convs[::2], self.convs[1::2], noise[1::2], noise[2::2], self.to_rgbs
         ):
             out = conv1(out, latent[:, i], noise=noise1)
+            append_if(return_features, features, out)
             out = conv2(out, latent[:, i + 1], noise=noise2)
+            append_if(return_features, features, out)
             skip = to_rgb(out, latent[:, i + 2], skip)
 
             i += 2
@@ -564,10 +573,10 @@ class Generator(nn.Module):
         image = skip
 
         if return_latents:
-            return image, latent
+            return image, latent, features
 
         else:
-            return image, None
+            return image, None, features
 
 
 class ConvLayer(nn.Sequential):
