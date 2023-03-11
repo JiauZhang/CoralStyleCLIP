@@ -24,7 +24,6 @@ def clip_loss(image, image_bar, text):
         __clip_preprocess__ = _transform(__clip_model__.visual.input_resolution)
     image = __clip_preprocess__(image * 128 + 127)
     image_bar = __clip_preprocess__(image_bar * 128 + 127)
-    text = clip.tokenize([text]).to(image.device)
     c1 = 1 - __clip_model__(image, text)[0] / 100
     c2 = 1 - __clip_model__(image_bar, text)[0] / 100
     loss = 0.5 * (c1 + c2).sum()

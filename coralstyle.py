@@ -47,19 +47,28 @@ class BiEqual(nn.Module):
         return self.block1(latent) - self.block2(latent)
 
 class Mapper(nn.Module):
-    def __init__(self, latent_dim=512):
+    def __init__(self, n_latent, latent_dim=512):
         super().__init__()
+        self.groups = [4, 8, n_latent]
+        self.mappers = [
+            nn.Sequential(
+                BiEqual(latent_dim),
+                BiEqual(latent_dim),
+                BiEqual(latent_dim),
+                BiEqual(latent_dim),
+                MLP(latent_dim),
+            ) for _ in range(len(self.groups))
+        ]
 
-        self.mapper = nn.Sequential(
-            BiEqual(latent_dim),
-            BiEqual(latent_dim),
-            BiEqual(latent_dim),
-            BiEqual(latent_dim),
-            MLP(latent_dim),
-        )
-
-    def forward(self, latent):
-        return self.mapper(latent)
+    def forward(self, w_plus):
+        # batch, n_latent, 512
+        delta_w_plus, last_i = [], 0
+        for i in range(len(self.groups)):
+            delta_w_plus.append(
+                self.mappers[i](w_plus[:, last_i:self.groups[i], :])
+            )
+            last_i = self.groups[i]
+        return torch.cat(delta_w_plus, dim=1)
 
 # Avoid adding the weight of StyleGAN2 to CoralAttnNet
 __stylegan2__ = None
@@ -70,7 +79,8 @@ class CoralAttnNet(nn.Module):
         global __stylegan2__
         __stylegan2__ = stylegan2
         self.conv_attn_nets = nn.ModuleList()
-        self.mapper = Mapper()
+        self.n_latent = __stylegan2__.n_latent
+        self.mapper = Mapper(self.n_latent)
 
         for i in range(2, __stylegan2__.log_size + 1):
             out_channel = __stylegan2__.channels[2 ** i]
@@ -125,7 +135,12 @@ class CoralAttnNet(nn.Module):
             masks.append(self.conv_attn_nets[i](features[i]))
         return masks
 
-    def forward(self, w_plus):
+    def get_latent(self, randn):
+        return __stylegan2__.get_latent(randn)
+
+    def forward(self, randn):
+        w = self.get_latent(randn)
+        w_plus = w.unsqueeze(1).repeat(1, self.n_latent, 1)
         delta_w_plus = self.mapper(w_plus)
         w_plus2 = w_plus + delta_w_plus
         image, f_l = self.stylegan2_forward(w_plus)
