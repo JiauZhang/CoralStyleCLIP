@@ -61,21 +61,24 @@ class Mapper(nn.Module):
     def forward(self, latent):
         return self.mapper(latent)
 
+# Avoid adding the weight of StyleGAN2 to CoralAttnNet
+__stylegan2__ = None
+
 class CoralAttnNet(nn.Module):
     def __init__(self, stylegan2):
         super().__init__()
-
-        self.stylegan2 = stylegan2
+        global __stylegan2__
+        __stylegan2__ = stylegan2
         self.conv_attn_nets = nn.ModuleList()
         self.mapper = Mapper()
 
-        for i in range(2, self.stylegan2.log_size + 1):
-            out_channel = self.stylegan2.channels[2 ** i]
+        for i in range(2, __stylegan2__.log_size + 1):
+            out_channel = __stylegan2__.channels[2 ** i]
             self.conv_attn_nets.append(ConvAttnNetwork(out_channel))
             self.conv_attn_nets.append(ConvAttnNetwork(out_channel))
 
     def stylegan2_forward(self, w_plus, return_features=True):
-        image, _, features = self.stylegan2(
+        image, _, features = __stylegan2__(
             [w_plus], input_is_latent=True,
             return_features=return_features,
         )
@@ -90,7 +93,7 @@ class CoralAttnNet(nn.Module):
     def stylegan2_blended_forward(self, w_plus1, w_plus2, masks,
         noise=None, randomize_noise=True,
     ):
-        stylegan2 = self.stylegan2
+        stylegan2 = __stylegan2__
         if noise is None:
             if randomize_noise:
                 noise = [None] * stylegan2.num_layers
