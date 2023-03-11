@@ -72,17 +72,18 @@ class CoralAttnNet(nn.Module):
         for i in range(2, self.stylegan2.log_size + 1):
             out_channel = self.stylegan2.channels[2 ** i]
             self.conv_attn_nets.append(ConvAttnNetwork(out_channel))
+            self.conv_attn_nets.append(ConvAttnNetwork(out_channel))
 
     def stylegan2_forward(self, w_plus, return_features=True):
         image, _, features = self.stylegan2(
-            w_plus, input_is_latent=True,
+            [w_plus], input_is_latent=True,
             return_features=return_features,
         )
         return image, features
 
     def blend_layer(self, layer, f_l_1_star, w_plus1, w_plus2, mask, noise):
-        f_l_bar_star = layer(f_l_1_star, w_plus2[:, 0], noise=noise[0])
-        f_l_bar = layer(f_l_1_star, w_plus1[:, 0], noise=noise[0])
+        f_l_bar_star = layer(f_l_1_star, w_plus2, noise=noise)
+        f_l_bar = layer(f_l_1_star, w_plus1, noise=noise)
         f_l_star = mask * f_l_bar_star + (1 - mask) * f_l_bar
         return f_l_star
 
@@ -98,7 +99,7 @@ class CoralAttnNet(nn.Module):
                     getattr(stylegan2.noises, f"noise_{i}") for i in range(stylegan2.num_layers)
                 ]
         f_l_1_star = stylegan2.input(w_plus1)
-        f_l_star = self.blend_layer(stylegan2.conv1, f_l_1_star, w_plus1, w_plus2, masks[0], noise[0])
+        f_l_star = self.blend_layer(stylegan2.conv1, f_l_1_star, w_plus1[:, 0], w_plus2[:, 0], masks[1], noise[0])
         skip = stylegan2.to_rgb1(f_l_star, w_plus2[:, 1])
 
         i = 1
@@ -106,8 +107,8 @@ class CoralAttnNet(nn.Module):
         for conv1, conv2, noise1, noise2, to_rgb in zip(
             stylegan2.convs[::2], stylegan2.convs[1::2], noise[1::2], noise[2::2], stylegan2.to_rgbs
         ):
-            f_l_star = self.blend_layer(conv1, f_l_1_star, w_plus1[:, i], w_plus2[:, i], masks[i], noise1)
-            f_l_star = self.blend_layer(conv2, f_l_star, w_plus1[:, i+1], w_plus2[:, i+1], masks[i+1], noise2)
+            f_l_star = self.blend_layer(conv1, f_l_1_star, w_plus1[:, i], w_plus2[:, i], masks[i+1], noise1)
+            f_l_star = self.blend_layer(conv2, f_l_star, w_plus1[:, i+1], w_plus2[:, i+1], masks[i+2], noise2)
             skip = to_rgb(f_l_star, w_plus2[:, i+2], skip)
             f_l_1_star = f_l_star
             i += 2
