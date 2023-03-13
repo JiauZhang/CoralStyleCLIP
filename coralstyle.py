@@ -50,7 +50,7 @@ class Mapper(nn.Module):
     def __init__(self, n_latent, latent_dim=512):
         super().__init__()
         self.groups = [4, 8, n_latent]
-        self.mappers = [
+        self.mappers = nn.ModuleList([
             nn.Sequential(
                 BiEqual(latent_dim),
                 BiEqual(latent_dim),
@@ -58,7 +58,7 @@ class Mapper(nn.Module):
                 BiEqual(latent_dim),
                 MLP(latent_dim),
             ) for _ in range(len(self.groups))
-        ]
+        ])
 
     def forward(self, w_plus):
         # batch, n_latent, 512
@@ -136,14 +136,19 @@ class CoralAttnNet(nn.Module):
         return masks
 
     def get_latent(self, randn):
-        return __stylegan2__.get_latent(randn)
+        with torch.no_grad():
+            return __stylegan2__.get_latent(randn)
 
     def forward(self, randn):
         w = self.get_latent(randn)
         w_plus = w.unsqueeze(1).repeat(1, self.n_latent, 1)
         delta_w_plus = self.mapper(w_plus)
         w_plus2 = w_plus + delta_w_plus
-        image, f_l = self.stylegan2_forward(w_plus)
+        with torch.no_grad():
+            image, f_l = self.stylegan2_forward(w_plus)
+            image = image.detach()
+            for i in range(len(f_l)):
+                f_l[i] = f_l[i].detach()
         image_bar, _ = self.stylegan2_forward(w_plus2, return_features=False)
         masks = self.predict_mask(f_l)
         image_star = self.stylegan2_blended_forward(w_plus, w_plus2, masks)
