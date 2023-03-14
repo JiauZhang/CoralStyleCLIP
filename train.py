@@ -25,7 +25,7 @@ model = CoralAttnNet(g_ema).to(device)
 optim = torch.optim.Adam(model.parameters(), lr=1e-4)
 epoches = 20000
 for epoch in range(epoches):
-    z = torch.randn((args.batch, 512))
+    z = torch.randn((args.batch, 512)).to(device)
     optim.zero_grad()
     image, image_star, image_bar, masks, delta_w_plus = model(z)
     clip_l = clip_loss(image_star, image_bar, text)
